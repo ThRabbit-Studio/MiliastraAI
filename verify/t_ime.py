@@ -29,6 +29,9 @@ DATA = os.path.join(ROOT, "data")
 HAN_RE = re.compile(r"[\u4e00-\u9fff]")
 MAX_WORD_SPAN = 4
 
+# 主 LuaRuntime，由 main() 注入。建 Lua 表时必须用它（见 lua_table 的说明）。
+MAIN_LUA_RT = None
+
 
 def load_pinyin_of() -> dict[str, str]:
     with open(os.path.join(DATA, "unihan_syllables.json"), encoding="utf-8") as fh:
@@ -50,6 +53,23 @@ def segment(raw: str, syllables: set[str]) -> list[str]:
             break
         out.append(matched)
     return out
+
+
+def lua_table(d: dict, lua=None):
+    """Python dict -> Lua 表。
+
+    ⚠ 必须用**同一个** LuaRuntime 建表：lupa 不允许跨运行时混用对象，
+    否则报 "cannot mix objects from different Lua runtimes"。
+    """
+    global MAIN_LUA_RT
+    rt = lua or MAIN_LUA_RT
+    if rt is None:
+        from lupa import LuaRuntime
+        rt = LuaRuntime()
+    t = rt.table()
+    for k, v in d.items():
+        t[k] = v
+    return t
 
 
 def lua_parts(T):
@@ -210,6 +230,56 @@ def scenario_matching(T) -> dict:
     return {"命中用例": len(cases), "语料外命中": top_hit}
 
 
+def scenario_remap(T) -> dict:
+    """按键重映射：真机上有键收不到事件时，用它把功能指到别的键。
+
+    这个功能必须可验证——它存在的意义就是「文档与真机不一致时能救回来」，
+    如果它自己不生效，那等于没有。
+    """
+    # 清状态，注册一次基准监听
+    T.ime_clear()
+    T.RT.ready = True
+    T.build_ui()
+    base_listeners = len(T.RT.keyHandlers)
+    check(base_listeners > 20, f"基准监听数异常：{base_listeners}")
+
+    # 造一个「G 键收不到事件」的场景：期望按 F 也能走通 G 的逻辑
+    # （F 枚举 16、G 枚举 17，都是奇匠按键）
+    # 注意 REMAP 的方向：[本应起作用的键] = "实际收到了事件的键"
+    # 这里模拟：F 收不到事件，按 G 时当作按了 F
+    # 造一个「F 键收不到事件」的场景：期望按 G 时执行 F 的功能
+    # REMAP 的方向是 [收不到事件的键] = "顶替它的键"
+    remap_table = lua_table({"F": "G"})
+    T.set_remap(remap_table)
+    T.build_ui()
+    n = len(T.RT.keyHandlers)
+    check(n >= base_listeners,
+          f"加重映射后监听数不应变少：{base_listeners} -> {n}")
+
+    # 功能验证：按 G 的事件，应该打出 f
+    T.ime_clear()
+    T.feed_event("KeyboardCraftspersonKey17Down")     # 物理 G（枚举 17）
+    _c, raw = T.ime_parts()
+    check(str(raw) == "f", f"按 G 应顶替 F 打出 f，实际 raw={raw!r}")
+
+    # 被顶替的键自己不再重复响应（它本来在真机上就收不到）
+    T.ime_clear()
+    T.feed_event("KeyboardCraftspersonKey16Down")     # 物理 F（枚举 16）
+    _c2, raw2 = T.ime_parts()
+    check(str(raw2) == "", f"被顶替的键不应再响应，实际 raw={raw2!r}")
+
+    # 别的键不受影响
+    T.ime_clear()
+    T.feed_event("KeyboardCraftspersonKey18Down")     # 物理 H（枚举 18）
+    _c3, raw3 = T.ime_parts()
+    check(str(raw3) == "h", f"未涉及的键应正常，实际 raw={raw3!r}")
+
+    T.set_remap(lua_table({}))
+    T.build_ui()
+    return {"基准监听": base_listeners, "加重映射后": n,
+            "按G顶替F": "OK", "按F仍正常": "OK"}
+
+
 def main() -> int:
     mock = MockGame(canvas=(1920, 1080))
     printed: list[str] = []
@@ -217,6 +287,8 @@ def main() -> int:
     lua, env = build_env(mock, printed, updates)
     T = lua.table()
     load_script(lua, env, T)
+    global MAIN_LUA_RT
+    MAIN_LUA_RT = lua
 
     pinyin_of = load_pinyin_of()
 
@@ -239,6 +311,7 @@ def main() -> int:
     run("拼音切分", scenario_segment, T)
     run("词级优先与选字", scenario_word_first, T, pinyin_of)
     run("上下文消歧", scenario_context, T)
+    run("按键重映射", scenario_remap, T)
     run("全部问法回放", scenario_full_corpus, T, pinyin_of)
     run("语义匹配与答不了", scenario_matching, T)
 

@@ -44,6 +44,10 @@ END = "-- [[IME_DATA_END]]"
 HAN = lambda ch: "\u4e00" <= ch <= "\u9fff"  # noqa: E731
 HAN_RE = re.compile(r"[\u4e00-\u9fff]")
 
+# 字库目标字数：手写的常用字 + 自动扩充的常用字。
+# 上限主要受体积约束（编辑器关卡 20MB）：3000 字约 200KB，远低于上限。
+TARGET_CHARS = 3000
+
 
 def lua_quote(s: str) -> str:
     out = []
@@ -89,6 +93,11 @@ def main() -> int:
         corpus = json.load(fh)
 
     # ---- 1. 逐字查读音 ----
+    # 分两层：
+    #   主力层 = ime/lexicon_groups.json 手写的常用字（有语义分组，人工确认过）
+    #   扩充层 = 按 Unihan 年级 + 字频自动补齐到 TARGET_CHARS 字
+    # 扩充足为了「玩家想打的字尽量都能打出来」，但不能挤掉主力层的位置，
+    # 所以排序键里主力层永远优先（见下面的 order 表）。
     missing_reading: list[str] = []
     bad_syllable: list[tuple[str, str]] = []
     char_syllable: dict[str, str] = {}
@@ -106,14 +115,41 @@ def main() -> int:
             char_syllable[ch] = syl
 
     if missing_reading:
-        print(f"[FAIL] 字库里 {len(missing_reading)} 个字查不到读音：{' '.join(missing_reading)}")
+        print(f"[FAIL] 手写字库里 {len(missing_reading)} 个字查不到读音："
+              f"{' '.join(missing_reading)}")
         return 1
     if bad_syllable:
-        print(f"[FAIL] {len(bad_syllable)} 个字的读音不是真实音节：")
+        print(f"[FAIL] {len(bad_syllable)} 个手写字的读音不是真实音节：")
         for ch, syl in bad_syllable[:20]:
             print(f"       {ch} -> {syl}")
         return 1
-    print(f"[OK] 字库 {len(char_syllable)} 字，读音全部可查且为真实音节")
+    hand_count = len(char_syllable)
+
+    # 自动扩充：按 (年级升序, 字频降序) 挑最常用的字补到目标字数
+    common_all = {}
+    if os.path.exists(COMMON_PATH):
+        with open(COMMON_PATH, encoding="utf-8") as fh:
+            common_all = json.load(fh)
+    pinlu_all = common_all.get("pinlu", {})
+    grade_all = common_all.get("grade", {})
+
+    def commonness(ch: str) -> tuple:
+        code = "%04X" % ord(ch)
+        return (grade_all.get(code, 99), -pinlu_all.get(code, 0), ord(ch))
+
+    cands = [ch for ch, syl in syl_map.items()
+             if syl in real_set and ch not in char_syllable and HAN(ch)]
+    cands.sort(key=commonness)
+    added = 0
+    for ch in cands:
+        if len(char_syllable) >= TARGET_CHARS:
+            break
+        char_syllable[ch] = syl_map[ch]
+        added += 1
+    print(f"[OK] 字库 {len(char_syllable)} 字（手写 {hand_count} + 自动扩充 {added}，"
+          f"目标 {TARGET_CHARS}）")
+    if added == 0 and hand_count < TARGET_CHARS:
+        print("[!] 没有可扩充的字，检查 extract_commonness.py 是否跑过")
 
     # ---- 2. 语料覆盖度 ----
     corpus_chars: Counter[str] = Counter()
@@ -178,10 +214,12 @@ def main() -> int:
             corpus_freq[ch] += 1
 
     order: dict[str, tuple[int, int]] = {}
+    hand_set = set()
     for gi, (gname, chars) in enumerate(groups.items()):
         for ci, ch in enumerate(chars):
             if ch not in order:
                 order[ch] = (gi, ci)
+                hand_set.add(ch)
 
     by_syllable: dict[str, list[str]] = defaultdict(list)
     for ch, syl in char_syllable.items():
@@ -189,10 +227,13 @@ def main() -> int:
 
     def rank(ch: str) -> tuple:
         code = "%04X" % ord(ch)
-        freq = pinlu.get(code, 0)
-        lvl = grade.get(code, 99)
-        gi, ci = order[ch]
-        return (0 if freq > 0 else 1, -freq, lvl, -corpus_freq.get(ch, 0), gi, ci)
+        freq = pinlu_all.get(code, 0)
+        lvl = grade_all.get(code, 99)
+        gi, ci = order.get(ch, (99, 99))
+        # 第一优先级：手写层 > 自动扩充层。
+        # 手写层是人工确认过的常用字，不能让自动扩充的冷僻字把它们挤下去。
+        hand = 0 if ch in hand_set else 1
+        return (0 if freq > 0 else 1, hand, -freq, lvl, -corpus_freq.get(ch, 0), gi, ci)
 
     table: dict[str, list[str]] = {}
     for syl, chars in by_syllable.items():
