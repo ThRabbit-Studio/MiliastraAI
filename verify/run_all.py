@@ -24,6 +24,7 @@ STEPS = [
     ("拼音引擎验证", ["verify/t_ime.py"]),
     ("语法与禁用构造", ["verify/check_syntax.py"]),
     ("API 白名单", ["verify/check_api_allowlist.py"]),
+    ("生成网页试用", ["verify/make_demo.py"]),
 ]
 
 

@@ -11,8 +11,8 @@ Image_sample_by_id.json
 # 便携工具（git 等），本地用，不入库
 .tools/
 # 构建产物（由 build/ 生成）
-# 注意：ime/ime_data.lua 虽然是生成物，但入库——
-# 它只有 60KB，入库后 clone 下来直接跑 build_speech.py 就能用，不必先装 Unihan 数据。
+# 注意：ime/ime_data.lua 与 docs/demo.html 虽然是生成物，但入库——
+# 前者让 clone 后直接能 build，后者是可交互试用页，读者不必先跑脚本。
 docs/构建报告.md
 docs/preview.html
 docs/preview.md
