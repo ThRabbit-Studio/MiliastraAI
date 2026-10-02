@@ -231,59 +231,65 @@ def scenario_matching(T) -> dict:
 
 
 def scenario_remap(T) -> dict:
-    """双层字母键盘。
+    """字母键覆盖 + 按键重映射。
 
-    文档 §26(3) 确认：**只有 12 个字母有独立按键**（U Z Y G H I O P J K L V），
-    另外 14 个字母（A B C D E F M N Q R S T W X）**收不到事件**——
-    这就是「有几个键位用不了」的真正原因。补法是双层键盘：
-    第 0 层打那 12 个，按切层键后第 1 层打另外 14 个。
+    文档 §26(3) 的**全部键鼠按下事件**并起来，覆盖 22 个字母：
+      A D E F G H I J K L O P Q R S T U V W X Y Z
+    只有 **B C M N** 没有按键（用户观察一致）。它们补在空闲功能键 F5-F8 上。
     """
     T.ime_clear()
     T.RT.ready = True
     T.build_ui()
-    l0 = {str(k): str(v) for k, v in T.LETTER_LAYER0.items()}
-    l1 = {str(k): str(v) for k, v in T.LETTER_LAYER1.items()}
-    layer_key = str(T.LAYER_KEY)
 
-    # 1) 两层合起来必须覆盖全部 26 个字母
-    covered = set(l0.values()) | set(l1.values())
+    lk = {str(k): str(v) for k, v in T.LETTER_KEY.items()}
+    idx_map = {str(k): int(v) for k, v in T.KEY_INDEX.items()}
     want = set(chr(c) for c in range(ord("A"), ord("Z") + 1))
-    check(covered == want,
-          f"两层字母未覆盖全部 26 个：缺 {sorted(want - covered)}，"
-          f"多 {sorted(covered - want)}")
-    # 2) 切层键不能同时被当作字母键（否则那个字母就打不出来了）
-    check(layer_key not in l0 and layer_key not in l1,
-          f"切层键 {layer_key} 与字母键冲突")
+    check(set(lk) == want,
+          f"LETTER_KEY 未覆盖全部 26 字母：缺 {sorted(want - set(lk))}")
+    # 每个字母必须对应不同的物理键，否则会互相打架
+    dup = {}
+    for letter, phys in lk.items():
+        dup.setdefault(phys, []).append(letter)
+    conflict = {p: v for p, v in dup.items() if len(v) > 1}
+    check(not conflict, f"多个字母共用同一个物理键：{conflict}")
 
-    # 3) 第 0 层：按 U（枚举 11）应打出 u
-    T.ST.layer = 0
-    T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey11Down")
-    _c, raw = T.ime_parts()
-    check(str(raw) == "u", f"第0层按 U 应打出 u，实际 {raw!r}")
+    # 补键：文档里没有按键的 4 个字母（B C M N），用空闲功能键承载
+    extra = {str(k): str(v) for k, v in T.EXTRA_EVENTS.items()}   # 键 -> 事件名
+    patched_keys = {"F5", "F6", "F7", "F8"}
+    n_patched = sum(1 for phys in lk.values() if phys in patched_keys)
+    check(n_patched == 4, f"补键字母应为 4 个，实际 {n_patched}")
+    check(set(lk[c] for c in ("B", "C", "M", "N")) == patched_keys,
+          "B/C/M/N 应分别对应 F5/F6/F7/F8")
+    # 其余 22 个字母必须有文档里的事件
+    for letter, phys in lk.items():
+        if phys in patched_keys:
+            continue
+        check(phys in extra or phys in idx_map,
+              f"字母 {letter} 的物理键 {phys} 既不在补键里也没有文档事件")
 
-    # 4) 按切层键进第 1 层，再按 U 应打出别的字母
-    T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey29Down")      # 切层键 `（枚举 29）
-    check(int(T.ST.layer) == 1, f"按切层键后应在第 1 层，实际 {T.ST.layer}")
-    T.feed_event("KeyboardCraftspersonKey11Down")      # 再按 U
-    _c2, raw2 = T.ime_parts()
-    want2 = str(l1.get("U", "")).lower()
-    check(str(raw2) == want2,
-          f"第1层按 U 应打出 {want2}，实际 {raw2!r}")
+    # 逐个补键验证：按该键的事件，应打出对应字母
+    for letter, phys in sorted(lk.items()):
+        if phys in extra:
+            continue          # 移动/技能键的事件名不在这张表里，另测
+        ev = f"KeyboardCraftspersonKey{idx_map[phys]}Down"
+        T.ime_clear()
+        T.feed_event(ev)
+        _c, raw = T.ime_parts()
+        check(str(raw) == letter.lower(),
+              f"按 {phys}（{ev}）应打出 {letter.lower()}，实际 {raw!r}")
 
-    # 5) 再按一次切层键回到第 0 层
-    T.feed_event("KeyboardCraftspersonKey29Down")
-    check(int(T.ST.layer) == 0, f"再按切层键应回第 0 层，实际 {T.ST.layer}")
-    T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey11Down")
-    _c3, raw3 = T.ime_parts()
-    check(str(raw3) == "u", f"回第0层后按 U 应打 u，实际 {raw3!r}")
+    # 移动/技能键单独验证
+    for letter, ev in sorted(extra.items()):
+        T.ime_clear()
+        T.feed_event(ev)
+        _c, raw = T.ime_parts()
+        check(str(raw) == letter.lower(),
+              f"按 {ev} 应打出 {letter.lower()}，实际 {raw!r}")
 
-    return {"第0层": "".join(sorted(l0.values())),
-            "第1层": "".join(sorted(l1.values())),
-            "切层键": layer_key,
-            "26字母覆盖": "OK", "切层往返": "OK"}
+    return {"字母总数": len(lk),
+            "补键字母": "".join(sorted(k for k, v in lk.items() if v in extra.values())),
+            "文档里有按键的字母": n_patched,
+            "逐字母验证": "OK"}
 
 
 def main() -> int:

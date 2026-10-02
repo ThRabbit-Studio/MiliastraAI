@@ -4,18 +4,19 @@
 
 规则（用户明确）：**文档列出来的才能用。**
 
-之前的错误（记录在此，避免重犯）：
-  我按「物理键栏与枚举序号错位一行」的猜测，推出枚举 11-36 = A-Z。
-  实际上文档 §26(3) 的「默认物理键」栏是权威的，真实映射是：
-    1-10 = 1..0 ；11-22 = U Z Y G H I O P J K L V ；23-28 = F5..F10 ；
-    29 = ` ；30 = - ；31 = = ；32 = [ ；33 = , ；34 = . ；35 = / ；
-    36-39 = 方向键 ；40 = 右Ctrl ；41 = 右Shift ；42 = Backspace ；43 = CapsLock
-  结论：**只有 12 个字母有独立按键**，A B C D E F M N Q R S T W X 这 14 个
-  字母没有对应事件。这就是「有几个键位用不了」的真正原因。
+三次踩坑记录（都是为了不再重犯）：
+  1. 最开始按「物理键栏与枚举序号错位一行」去推枚举 11-36 = A-Z —— 错的。
+  2. 改从文档读，但只读了「奇匠按键」那批，漏了移动键/动作键/技能键，
+     于是误判「只有 12 个字母可用」。
+  3. 实际把文档里**全部键鼠按下事件**并起来看：
+       覆盖 22 个字母：A D E F G H I J K L O P Q R S T U V W X Y Z
+       缺失  4 个字母：B C M N
+     与用户观察一致（用户说「只有四个字母没有」）。
 
-于是拼音字母分成两层（F 键切层，F 本身是枚举 16）：
-  第 0 层（默认，12 个字母）：U Z Y G H I O P J K L V
-  第 1 层（切层后，14 个字母里取 12 个映射到同样这 12 个键）
+那 4 个字母用空闲键补：F5-F10、` - = [ , . / 、方向键、右Ctrl、右Shift 都空着。
+特意选 6 个功能/标点键，不与任何已有字母或功能冲突。
+
+产物：data/keymap.json（供 main.lua 与自检共用）
 """
 from __future__ import annotations
 
@@ -31,39 +32,58 @@ WORKSPACE = os.path.dirname(ROOT)
 DOC = os.path.join(WORKSPACE, "Lua客户端控件API文档.md")
 OUT_JSON = os.path.join(ROOT, "data", "keymap.json")
 
-# 文档里「默认物理键」栏 -> 我们的物理键名
+# 物理键栏的写法 -> 我们的键名
 PHYS_ALIAS = {
     "`": "BACKQUOTE", "-": "MINUS", "\\=": "EQUALS", "=": "EQUALS",
     "[": "LBRACKET", ",": "COMMA", ".": "PERIOD", "/": "SLASH",
     "↑": "UP", "↓": "DOWN", "←": "LEFT", "→": "RIGHT",
     "右Ctrl": "RCTRL", "右Shift": "RSHIFT", "Backspace": "BACKSPACE",
-    "CapsLock": "CAPSLOCK",
+    "CapsLock": "CAPSLOCK", "Space": "SPACE", "Tab": "TAB",
+    "鼠标左键": "MOUSE_LEFT", "鼠标右键": "MOUSE_RIGHT",
+}
+for _c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+    PHYS_ALIAS[_c] = _c
+for _c in "1234567890":
+    PHYS_ALIAS[_c] = _c
+for _i in range(1, 11):
+    PHYS_ALIAS[f"F{_i}"] = f"F{_i}"
+
+# 给缺失字母分配：选当前没有任何用途的功能键
+# （F5-F10 都在文档里、且原本没被用作字母；发送键改用 [ 后它们就空出来了）
+MISSING_ASSIGN = {
+    "B": "F5",
+    "C": "F6",
+    "M": "F7",
+    "N": "F8",
 }
 
-# 第 1 层的字母分配：缺失的 14 个字母，10 个放到那 12 个可用字母键之外，
-# 剩下 4 个放到标点键上（标点在有独立按键的键里，且拼音输入用不到标点）
-LAYER1_LETTERS = list("ABCDEFMNP")
-LAYER1_EXTRA = {"MINUS": "Q", "EQUALS": "R", "LBRACKET": "S",
-                "COMMA": "T", "PERIOD": "W", "SLASH": "X"}
+# 发送键：必须是文档里列出的键，且不与字母/删除冲突。
+# 原先是 F5，现在 F5 让给字母 B，发送改用 [（枚举 32）。
+SEND_KEY = "LBRACKET"
 
 
-def parse_doc() -> list[tuple[int, str, str]]:
-    """返回 [(枚举编号, 物理键名, 事件名)]，只含奇匠按键的「按下」。"""
+def parse_doc() -> list[dict]:
+    """抠出文档里全部「键鼠按下」事件。"""
     with open(DOC, encoding="utf-8") as fh:
         lines = fh.readlines()
     out = []
     for line in lines:
         if "Enum.KeyEventType" not in line:
             continue
-        m = re.search(r"`(KeyboardCraftspersonKey(\d+)Down)`\s*\|([^|]*)\|\s*`([^`]*)`",
-                      line)
+        m = re.search(r"`(Keyboard[A-Za-z0-9_]+)`", line)
         if not m:
             continue
-        n = int(m.group(2))
-        phys_raw = m.group(4).strip()
-        phys = PHYS_ALIAS.get(phys_raw, phys_raw.upper())
-        out.append((n, phys, m.group(1)))
-    return sorted(out, key=lambda x: x[0])
+        name = m.group(1)
+        if not name.endswith("Down"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        phys_raw = cells[3].strip("`").strip()
+        phys = PHYS_ALIAS.get(phys_raw)
+        out.append({"event": name, "desc": cells[2], "phys_raw": phys_raw,
+                    "phys": phys})
+    return out
 
 
 def main() -> int:
@@ -71,79 +91,96 @@ def main() -> int:
     ap.add_argument("--write", action="store_true")
     args = ap.parse_args()
 
-    table = parse_doc()
-    if not table:
-        print("[FAIL] 没能从文档解析出奇匠按键")
+    events = parse_doc()
+    if not events:
+        print("[FAIL] 没能从文档解析出键鼠事件")
         return 1
-    print(f"[OK] 文档解析出奇匠按键 {len(table)} 个（枚举 "
-          f"{table[0][0]}~{table[-1][0]}）")
+    print(f"[OK] 文档解析出键鼠「按下」事件 {len(events)} 个")
 
-    by_phys = {phys: (n, ev) for n, phys, ev in table}
-    letters = [p for p in by_phys if len(p) == 1 and "A" <= p <= "Z"]
-    letters.sort()
-    print(f"     其中有独立按键的字母 {len(letters)} 个：{' '.join(letters)}")
-    all_letters = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    missing = sorted(all_letters - set(letters))
-    print(f"     没有按键的字母 {len(missing)} 个：{' '.join(missing)}")
+    # 字母覆盖
+    letter_event: dict[str, str] = {}
+    for e in events:
+        p = e["phys"]
+        if p and len(p) == 1 and p.isalpha():
+            letter_event.setdefault(p.upper(), e["event"])
+    covered = set(letter_event)
+    want = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    missing = sorted(want - covered)
+    print(f"     字母键事件覆盖 {len(covered)} 个字母：{''.join(sorted(covered))}")
+    print(f"     缺失 {len(missing)} 个：{''.join(missing)}")
 
-    # 第 1 层：把缺失字母映射到可用的 12 个键 + 2 个标点键
-    layer1 = {}
-    avail = letters                       # 12 个可用字母键
-    for phys, ch in zip(avail, LAYER1_LETTERS):
-        layer1[phys] = ch
-    for phys, ch in LAYER1_EXTRA.items():
-        layer1[phys] = ch
-    covered = set(layer1.values())
-    still = sorted(all_letters - set(letters) - covered)
-    print(f"     切层后覆盖缺失字母 {len(covered)} 个，仍缺 {still or '无'}")
+    # 补齐：把缺失字母挂到空闲键上
+    used_keys = {e["phys"] for e in events if e["phys"]}
+    extra = {}
+    for ch in missing:
+        k = MISSING_ASSIGN.get(ch)
+        if not k:
+            print(f"[FAIL] 缺失字母 {ch} 没有分配补键")
+            return 1
+        if k in used_keys:
+            print(f"[FAIL] 补键 {k} 已被占用，换一个")
+            return 1
+        extra[ch] = k
+        used_keys.add(k)
+    print(f"     补齐方案：" + "  ".join(f"{ch}={k}" for ch, k in extra.items()))
+
+    # 真正可用的字母键表：字母 -> 事件名
+    letters: dict[str, str] = {}
+    for ch, ev in letter_event.items():
+        letters[ch] = ev
+    phys_of_event = {e["event"]: e["phys"] for e in events}
+    for ch, k in extra.items():
+        # 补键本身没有字母事件，运行时用它的物理键事件来触发该字母
+        letters[ch] = f"__BY_PHYS__{k}"
 
     keymap = {
         "source": "Lua客户端控件API文档.md §26(3) Enum.KeyEventType",
-        "rule": "文档列出的事件才能用；物理键取文档「默认物理键」栏",
-        "events": {phys: ev for _n, phys, ev in table},
-        "table": [{"n": n, "phys": phys, "event": ev} for n, phys, ev in table],
-        "letters_direct": {p: p for p in letters},
-        "letters_layer1": layer1,
-        "layer_key": "I",        # 切层键（I = 枚举 16）
-        "letters_missing": missing,
+        "rule": "文档列出的事件才能用",
+        "events": [{"event": e["event"], "phys": e["phys"],
+                    "desc": e["desc"]} for e in events],
+        "letters": letters,
+        "letter_covered": sorted(covered),
+        "letter_missing": missing,
+        "extra_assign": extra,
     }
     with open(OUT_JSON, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(keymap, fh, ensure_ascii=False, indent=1)
     print(f"[OK] 键表 -> {os.path.relpath(OUT_JSON, ROOT)}")
 
     # 生成 Lua 块
-    lines = ["-- [[KEYMAP_BEGIN]] 由 build/gen_keymap.py 从 API 文档生成，请勿手改",
-             "-- 文档列出的奇匠按键事件（唯一事实来源）",
-             "MOD.KEY_EVENTS = {"]
-    for n, phys, ev in table:
-        lines.append(f'    ["{phys}"] = "{ev}",   -- 枚举 {n}')
-    lines.append("}")
-    lines.append("-- 第 0 层：有独立按键的 12 个字母")
-    lines.append("MOD.LETTER_LAYER0 = {")
-    for p in letters:
-        lines.append(f'    ["{p}"] = "{p}",')
-    lines.append("}")
-    lines.append("-- 第 1 层：切层后同一批键输出另外 12 个字母")
-    lines.append("MOD.LETTER_LAYER1 = {")
-    for p, ch in sorted(layer1.items()):
-        lines.append(f'    ["{p}"] = "{ch}",')
-    lines.append("}")
-    lines.append(f'MOD.LAYER_KEY = "{keymap["layer_key"]}"')
-    lines.append("-- [[KEYMAP_END]]")
-    print("[OK] Lua 键表块已生成（--write 可写入 main.lua）")
+    L = []
+    L.append("-- [[KEYMAP_BEGIN]] 由 build/gen_keymap.py 从 API 文档生成，请勿手改")
+    L.append("-- 键鼠「按下」事件（文档列出）= 唯一可用的按键来源")
+    L.append("MOD.KEY_EVENTS = {")
+    for e in events:
+        if e["phys"]:
+            L.append(f'    ["{e["phys"]}"] = "{e["event"]}",')
+    L.append("}")
+    L.append("-- 字母 -> 物理键（22 个来自文档，4 个是补键 B/C/M/N）")
+    L.append("MOD.LETTER_KEY = {")
+    for ch in sorted(letters):
+        ev = letters[ch]
+        if ev.startswith("__BY_PHYS__"):
+            L.append(f'    ["{ch}"] = "{ev.replace("__BY_PHYS__", "")}",   -- 补键')
+        else:
+            phys = phys_of_event.get(ev, "")
+            L.append(f'    ["{ch}"] = "{phys}",')
+    L.append("}")
+    L.append("-- [[KEYMAP_END]]")
+    print("[OK] Lua 键表块已生成")
 
     if args.write:
         main_lua = os.path.join(ROOT, "out", "main.lua")
         with open(main_lua, encoding="utf-8") as fh:
             src = fh.read()
-        b, e = "-- [[KEYMAP_BEGIN]]", "-- [[KEYMAP_END]]"
-        if b not in src or e not in src:
-            print(f"[!] {main_lua} 里没有 KEYMAP 标记，跳过")
+        b, e_ = "-- [[KEYMAP_BEGIN]]", "-- [[KEYMAP_END]]"
+        if b not in src or e_ not in src:
+            print(f"[!] {main_lua} 里没有 KEYMAP 标记，跳过写入")
         else:
             head, rest = src.split(b, 1)
-            _, tail = rest.split(e, 1)
+            _, tail = rest.split(e_, 1)
             with open(main_lua, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(head + "\n".join(lines) + tail)
+                fh.write(head + "\n".join(L) + tail)
             print("[OK] 已写入 main.lua")
     return 0
 

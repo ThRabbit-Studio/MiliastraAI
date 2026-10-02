@@ -135,58 +135,47 @@ local CFG = {
 local KEY_INDEX = {
     ["1"] = 1, ["2"] = 2, ["3"] = 3, ["4"] = 4, ["5"] = 5,
     ["6"] = 6, ["7"] = 7, ["8"] = 8, ["9"] = 9, ["0"] = 10,
-    -- 有独立按键的 12 个字母
     ["U"] = 11, ["Z"] = 12, ["Y"] = 13, ["G"] = 14, ["H"] = 15,
     ["I"] = 16, ["O"] = 17, ["P"] = 18, ["J"] = 19, ["K"] = 20,
     ["L"] = 21, ["V"] = 22,
-    -- 功能键
     ["F5"] = 23, ["F6"] = 24, ["F7"] = 25, ["F8"] = 26,
     ["F9"] = 27, ["F10"] = 28,
-    -- 标点（第 1 层键盘借用它们承载字母）
     ["BACKQUOTE"] = 29, ["MINUS"] = 30, ["EQUALS"] = 31, ["LBRACKET"] = 32,
     ["COMMA"] = 33, ["PERIOD"] = 34, ["SLASH"] = 35,
-    -- 方向键与其它
     ["UP"] = 36, ["DOWN"] = 37, ["LEFT"] = 38, ["RIGHT"] = 39,
     ["RCTRL"] = 40, ["RSHIFT"] = 41, ["BACKSPACE"] = 42, ["CAPSLOCK"] = 43,
 }
 
--- ── 双层字母键盘 ──────────────────────────────────────────────────────────
--- 只有 12 个字母键可用，而拼音要 26 个字母，所以分两层：
---   第 0 层（默认）：那 12 个键输出它们自己
---   第 1 层（按一下切层键后）：这些键 + 6 个标点键输出另外 14 个字母
--- 切层做成"按一下切换"而不是"按住"，因为真机上拿不到可靠的按下/抬起配对。
-local LETTER_LAYER0 = {
-    ["U"] = "U", ["Z"] = "Z", ["Y"] = "Y", ["G"] = "G", ["H"] = "H",
-    ["I"] = "I", ["O"] = "O", ["P"] = "P", ["J"] = "J", ["K"] = "K",
-    ["L"] = "L", ["V"] = "V",
+-- ── 字母 -> 物理键 ────────────────────────────────────────────────────────
+-- 结论（build/gen_keymap.py 从文档统计，与你的观察一致）：
+--   把文档里**全部键鼠按下事件**并起来，覆盖 22 个字母：
+--     A D E F G H I J K L O P Q R S T U V W X Y Z
+--   **只有 B C M N 这 4 个字母没有按键**。
+--   其中 A S W D 来自移动键、E Q R T 来自技能键、F 是交互键、X 是落下键——
+--   它们不是「奇匠按键」，但同样产生键盘事件，所以可用。
+-- 4 个缺失字母补在空闲功能键上；原先的「双层键盘」方案因此不再需要，已移除。
+local LETTER_KEY = {
+    ["A"] = "A", ["D"] = "D", ["E"] = "E", ["F"] = "F", ["G"] = "G",
+    ["H"] = "H", ["I"] = "I", ["J"] = "J", ["K"] = "K", ["L"] = "L",
+    ["O"] = "O", ["P"] = "P", ["Q"] = "Q", ["R"] = "R", ["S"] = "S",
+    ["T"] = "T", ["U"] = "U", ["V"] = "V", ["W"] = "W", ["X"] = "X",
+    ["Y"] = "Y", ["Z"] = "Z",
+    -- 补键：B/C/M/N 在文档里没有按键，用空闲的 F5-F8 承载
+    ["B"] = "F5", ["C"] = "F6", ["M"] = "F7", ["N"] = "F8",
 }
-local LETTER_LAYER1 = {
-    ["U"] = "A", ["Z"] = "B", ["Y"] = "C", ["G"] = "D", ["H"] = "E",
-    ["O"] = "M", ["P"] = "N", ["J"] = "P", ["K"] = "Q", ["L"] = "R",
-    ["V"] = "S",
-    ["MINUS"] = "T", ["EQUALS"] = "W", ["LBRACKET"] = "X",
-    ["COMMA"] = "F", ["PERIOD"] = "G", ["SLASH"] = "H",
-}
--- 切层键：按一下切到第 1 层，再按一下回第 0 层。
--- 必须挑一个**不是字母**的键：一开始选 I，结果 I 本身是字母，切层就把 i 打不出来了。
--- `` ` ``（枚举 29）不参与拼音，正合适。
-local LAYER_KEY = "BACKQUOTE"
--- 第 1 层独占的键（第 0 层时它们不是字母）
-local LAYER1_ONLY = { MINUS = true, EQUALS = true, LBRACKET = true,
-                      COMMA = true, PERIOD = true, SLASH = true }
 
--- 两层的按键图例（给玩家看当前这层哪个键对应哪个字母）
-local function layer_legend(map)
-    local names = {}
-    for k in pairs(map) do names[#names + 1] = k end
-    table.sort(names)
-    local out = {}
-    for _, k in ipairs(names) do out[#out + 1] = k .. "=" .. map[k] end
-    return table.concat(out, " ")
-end
-local LAYER_LEGEND = {
-    layer_legend(LETTER_LAYER0),
-    layer_legend(LETTER_LAYER1),
+-- 移动/技能/交互/落下键的事件名。它们不在「奇匠按键」编号体系里，单独列。
+local EXTRA_EVENTS = {
+    ["W"] = "KeyboardMoveForwardKeyDown",
+    ["S"] = "KeyboardMoveBackwardKeyDown",
+    ["A"] = "KeyboardMoveLeftKeyDown",
+    ["D"] = "KeyboardMoveRightKeyDown",
+    ["E"] = "KeyboardCharacterSkill1KeyDown",
+    ["Q"] = "KeyboardCharacterSkill2KeyDown",
+    ["R"] = "KeyboardCharacterSkill3KeyDown",
+    ["T"] = "KeyboardCharacterSkill4KeyDown",
+    ["F"] = "KeyboardInteractKeyDown",
+    ["X"] = "KeyboardDropKeyDown",
 }
 
 -- 数字键 -> 候补序号（1-9 选第 1-9 个，0 选第 10 个）
@@ -217,7 +206,9 @@ local REMAP_ENABLED = true
 
 
 -- 发送键：必须是有文档依据的奇匠按键
-local SEND_KEY = "F5"
+-- 发送键：用 =（枚举 31）。文档列出、且不承载字母。
+-- 之前用 F5，后来 F5 让给了缺失字母 B。
+local SEND_KEY = "EQUALS"
 
 -- §1 语料数据段（由构建脚本生成） --------------------------------------------
 
@@ -5052,6 +5043,7 @@ local ST = {
     pick = nil,         -- 玩家用数字键选中的问法序号
     busy = false,
     -- 双层字母键盘的当前层：0 = 那 12 个直键，1 = 另外 14 个字母
+    -- （已废弃：字母改成 1:1 映射后不再需要分层，保留字段避免旧引用报错）
     layer = 0,
 }
 
@@ -5103,14 +5095,11 @@ local function refresh_hint()
         return
     end
     if raw ~= "" or #pool > 0 then
-        set_text("hint", "数字键选字 · Backspace 删除 · " .. SEND_KEY .. " 发送 · 第"
-            .. (ST.layer + 1) .. "层：" .. LAYER_LEGEND[ST.layer + 1])
+        set_text("hint", "数字键选字 · Backspace 删除 · " .. SEND_KEY .. " 发送")
     elseif committed ~= "" then
-        set_text("hint", "可以继续打拼音补充，或按 " .. SEND_KEY .. " 发送这句话 · 第"
-            .. (ST.layer + 1) .. "层：" .. LAYER_LEGEND[ST.layer + 1])
+        set_text("hint", "可以继续打拼音补充，或按 " .. SEND_KEY .. " 发送这句话")
     else
-        set_text("hint", "打拼音即可（连续输入，例如 nihaoma） · 第 " .. (ST.layer + 1)
-            .. " 层（" .. LAYER_KEY .. " 切层）：" .. LAYER_LEGEND[ST.layer + 1])
+        set_text("hint", "打拼音即可（连续输入，例如 nihaoma） · " .. SEND_KEY .. " 发送")
     end
 end
 
@@ -5227,6 +5216,8 @@ end
 -- §8 事件 --------------------------------------------------------------------
 
 local function event_name(physical)
+    -- 移动/技能/交互/落下键：它们不在「奇匠按键」编号体系里，事件名单独列
+    if EXTRA_EVENTS[physical] then return EXTRA_EVENTS[physical] end
     local idx = KEY_INDEX[physical]
     if not idx then return nil end
     -- 文档 §26(3) 里只有 KeyboardCraftspersonKey1Down ~ Key43Down。
@@ -5314,23 +5305,17 @@ local function handle_key(physical)
         return true
     end
 
-    -- 切层键：切换双层字母键盘（26 个字母里的 14 个没有独立按键，靠切层补齐）
-    if physical == LAYER_KEY then
-        ST.layer = (ST.layer == 0) and 1 or 0
-        logf("切层：第 %d 层（%s）", ST.layer + 1, LAYER_LEGEND[ST.layer + 1])
-        refresh_hint()
-        return true
+    -- 字母键：查「字母 -> 物理键」的反表。
+    -- 22 个字母是它们本来那个键；B/C/M/N 在文档里没有按键，补在 F5-F8 上。
+    local ch = nil
+    for letter, phys in pairs(LETTER_KEY) do
+        if phys == physical then ch = letter break end
     end
-
-    -- 字母键：按当前层查表
-    local map = (ST.layer == 1) and LETTER_LAYER1 or LETTER_LAYER0
-    local ch = map[physical]
     if ch then
         ime_letter(ch)
         on_input_changed()
         return true
     end
-    -- 第 1 层独占的键在其它层不产生字母
     return false
 end
 
@@ -5352,16 +5337,23 @@ local function register_keys()
     -- 一个逻辑键正常对应一个事件；REMAP 生效时，别名键的事件也会指到这个逻辑键，
     -- 于是一个逻辑键可能挂多个事件（最多两个：自己 + 顶替它的那个键）。
     local pairs_to_bind = {}
-    for physical in pairs(KEY_INDEX) do
+    local function consider(physical)
         local ev = event_name(physical)
         if not ev then
-            -- 没有文档依据的键跳过
-        elseif REMAP_ENABLED and REMAP[physical] then
-            -- 这个键被指派去顶替别人了，它自己的事件不再响应
-            -- （它本来在真机上就收不到，留着只会重复）
-        else
-            pairs_to_bind[#pairs_to_bind + 1] = { ev = ev, key = physical }
+            return   -- 没有文档依据的键跳过
         end
+        if REMAP_ENABLED and REMAP[physical] then
+            -- 这个键被指派去顶替别人了，它自己的事件不再响应
+            return
+        end
+        pairs_to_bind[#pairs_to_bind + 1] = { ev = ev, key = physical }
+    end
+    for physical in pairs(KEY_INDEX) do
+        consider(physical)
+    end
+    -- 移动/技能/交互/落下键也要注册（它们承载 A S W D E Q R T F X 这 10 个字母）
+    for physical in pairs(EXTRA_EVENTS) do
+        consider(physical)
     end
     -- 重映射：让别名键的事件去执行被顶替键的功能。
     -- is_alias 标记它必须排在同事件的其它处理器前面（回调返回 true 即视为已处理）。
@@ -5479,7 +5471,7 @@ function layout_plan(canvas_w, canvas_h)
         text = "", align = "middle", color = "dim" }
     plan[#plan + 1] = { name = "keys", parent = nil, kind = "text", size = 18,
         x = cx, y = dy(LAYOUT.keys_y), w = 1760 * sx, h = 44 * sy,
-        text = "输入：字母键打拼音（" .. LAYER_KEY .. " 切层）· 1-0 选字或选问法 · Backspace 删除 · "
+        text = "输入：字母键打拼音 · 1-0 选字或选问法 · Backspace 删除 · "
             .. SEND_KEY .. " 发送",
         align = "middle", color = "dim" }
     return plan, sx, sy
@@ -5602,11 +5594,9 @@ if __SPEECH_TEST__ then
     rawset(__SPEECH_TEST__, "ST", ST)
     rawset(__SPEECH_TEST__, "LAYOUT", LAYOUT)
     __SPEECH_TEST__.layout_plan = layout_plan
-    -- 双层字母键盘（只有 12 个字母有独立按键，另外 14 个靠切层）
-    rawset(__SPEECH_TEST__, "LETTER_LAYER0", LETTER_LAYER0)
-    rawset(__SPEECH_TEST__, "LETTER_LAYER1", LETTER_LAYER1)
-    __SPEECH_TEST__.LAYER_KEY = LAYER_KEY
-    rawset(__SPEECH_TEST__, "LAYER_LEGEND", LAYER_LEGEND)
+    -- 字母 -> 物理键（22 个来自文档事件，B/C/M/N 用 F5-F8 补）
+    rawset(__SPEECH_TEST__, "LETTER_KEY", LETTER_KEY)
+    rawset(__SPEECH_TEST__, "EXTRA_EVENTS", EXTRA_EVENTS)
     __SPEECH_TEST__.build_ui = build_ui
     __SPEECH_TEST__.handle_key = handle_key
     __SPEECH_TEST__.submit = submit
