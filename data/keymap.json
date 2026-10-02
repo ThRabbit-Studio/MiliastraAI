@@ -1,0 +1,314 @@
+{
+ "source": "Lua客户端控件API文档.md §26(3) Enum.KeyEventType",
+ "rule": "文档列出的事件才能用；物理键取文档「默认物理键」栏",
+ "events": {
+  "1": "KeyboardCraftspersonKey1Down",
+  "2": "KeyboardCraftspersonKey2Down",
+  "3": "KeyboardCraftspersonKey3Down",
+  "4": "KeyboardCraftspersonKey4Down",
+  "5": "KeyboardCraftspersonKey5Down",
+  "6": "KeyboardCraftspersonKey6Down",
+  "7": "KeyboardCraftspersonKey7Down",
+  "8": "KeyboardCraftspersonKey8Down",
+  "9": "KeyboardCraftspersonKey9Down",
+  "0": "KeyboardCraftspersonKey10Down",
+  "U": "KeyboardCraftspersonKey11Down",
+  "Z": "KeyboardCraftspersonKey12Down",
+  "Y": "KeyboardCraftspersonKey13Down",
+  "G": "KeyboardCraftspersonKey14Down",
+  "H": "KeyboardCraftspersonKey15Down",
+  "I": "KeyboardCraftspersonKey16Down",
+  "O": "KeyboardCraftspersonKey17Down",
+  "P": "KeyboardCraftspersonKey18Down",
+  "J": "KeyboardCraftspersonKey19Down",
+  "K": "KeyboardCraftspersonKey20Down",
+  "L": "KeyboardCraftspersonKey21Down",
+  "V": "KeyboardCraftspersonKey22Down",
+  "F5": "KeyboardCraftspersonKey23Down",
+  "F6": "KeyboardCraftspersonKey24Down",
+  "F7": "KeyboardCraftspersonKey25Down",
+  "F8": "KeyboardCraftspersonKey26Down",
+  "F9": "KeyboardCraftspersonKey27Down",
+  "F10": "KeyboardCraftspersonKey28Down",
+  "": "KeyboardCraftspersonKey29Down",
+  "MINUS": "KeyboardCraftspersonKey30Down",
+  "EQUALS": "KeyboardCraftspersonKey31Down",
+  "LBRACKET": "KeyboardCraftspersonKey32Down",
+  "COMMA": "KeyboardCraftspersonKey33Down",
+  "PERIOD": "KeyboardCraftspersonKey34Down",
+  "SLASH": "KeyboardCraftspersonKey35Down",
+  "UP": "KeyboardCraftspersonKey36Down",
+  "DOWN": "KeyboardCraftspersonKey37Down",
+  "LEFT": "KeyboardCraftspersonKey38Down",
+  "RIGHT": "KeyboardCraftspersonKey39Down",
+  "RCTRL": "KeyboardCraftspersonKey40Down",
+  "RSHIFT": "KeyboardCraftspersonKey41Down",
+  "BACKSPACE": "KeyboardCraftspersonKey42Down",
+  "CAPSLOCK": "KeyboardCraftspersonKey43Down"
+ },
+ "table": [
+  {
+   "n": 1,
+   "phys": "1",
+   "event": "KeyboardCraftspersonKey1Down"
+  },
+  {
+   "n": 2,
+   "phys": "2",
+   "event": "KeyboardCraftspersonKey2Down"
+  },
+  {
+   "n": 3,
+   "phys": "3",
+   "event": "KeyboardCraftspersonKey3Down"
+  },
+  {
+   "n": 4,
+   "phys": "4",
+   "event": "KeyboardCraftspersonKey4Down"
+  },
+  {
+   "n": 5,
+   "phys": "5",
+   "event": "KeyboardCraftspersonKey5Down"
+  },
+  {
+   "n": 6,
+   "phys": "6",
+   "event": "KeyboardCraftspersonKey6Down"
+  },
+  {
+   "n": 7,
+   "phys": "7",
+   "event": "KeyboardCraftspersonKey7Down"
+  },
+  {
+   "n": 8,
+   "phys": "8",
+   "event": "KeyboardCraftspersonKey8Down"
+  },
+  {
+   "n": 9,
+   "phys": "9",
+   "event": "KeyboardCraftspersonKey9Down"
+  },
+  {
+   "n": 10,
+   "phys": "0",
+   "event": "KeyboardCraftspersonKey10Down"
+  },
+  {
+   "n": 11,
+   "phys": "U",
+   "event": "KeyboardCraftspersonKey11Down"
+  },
+  {
+   "n": 12,
+   "phys": "Z",
+   "event": "KeyboardCraftspersonKey12Down"
+  },
+  {
+   "n": 13,
+   "phys": "Y",
+   "event": "KeyboardCraftspersonKey13Down"
+  },
+  {
+   "n": 14,
+   "phys": "G",
+   "event": "KeyboardCraftspersonKey14Down"
+  },
+  {
+   "n": 15,
+   "phys": "H",
+   "event": "KeyboardCraftspersonKey15Down"
+  },
+  {
+   "n": 16,
+   "phys": "I",
+   "event": "KeyboardCraftspersonKey16Down"
+  },
+  {
+   "n": 17,
+   "phys": "O",
+   "event": "KeyboardCraftspersonKey17Down"
+  },
+  {
+   "n": 18,
+   "phys": "P",
+   "event": "KeyboardCraftspersonKey18Down"
+  },
+  {
+   "n": 19,
+   "phys": "J",
+   "event": "KeyboardCraftspersonKey19Down"
+  },
+  {
+   "n": 20,
+   "phys": "K",
+   "event": "KeyboardCraftspersonKey20Down"
+  },
+  {
+   "n": 21,
+   "phys": "L",
+   "event": "KeyboardCraftspersonKey21Down"
+  },
+  {
+   "n": 22,
+   "phys": "V",
+   "event": "KeyboardCraftspersonKey22Down"
+  },
+  {
+   "n": 23,
+   "phys": "F5",
+   "event": "KeyboardCraftspersonKey23Down"
+  },
+  {
+   "n": 24,
+   "phys": "F6",
+   "event": "KeyboardCraftspersonKey24Down"
+  },
+  {
+   "n": 25,
+   "phys": "F7",
+   "event": "KeyboardCraftspersonKey25Down"
+  },
+  {
+   "n": 26,
+   "phys": "F8",
+   "event": "KeyboardCraftspersonKey26Down"
+  },
+  {
+   "n": 27,
+   "phys": "F9",
+   "event": "KeyboardCraftspersonKey27Down"
+  },
+  {
+   "n": 28,
+   "phys": "F10",
+   "event": "KeyboardCraftspersonKey28Down"
+  },
+  {
+   "n": 29,
+   "phys": "",
+   "event": "KeyboardCraftspersonKey29Down"
+  },
+  {
+   "n": 30,
+   "phys": "MINUS",
+   "event": "KeyboardCraftspersonKey30Down"
+  },
+  {
+   "n": 31,
+   "phys": "EQUALS",
+   "event": "KeyboardCraftspersonKey31Down"
+  },
+  {
+   "n": 32,
+   "phys": "LBRACKET",
+   "event": "KeyboardCraftspersonKey32Down"
+  },
+  {
+   "n": 33,
+   "phys": "COMMA",
+   "event": "KeyboardCraftspersonKey33Down"
+  },
+  {
+   "n": 34,
+   "phys": "PERIOD",
+   "event": "KeyboardCraftspersonKey34Down"
+  },
+  {
+   "n": 35,
+   "phys": "SLASH",
+   "event": "KeyboardCraftspersonKey35Down"
+  },
+  {
+   "n": 36,
+   "phys": "UP",
+   "event": "KeyboardCraftspersonKey36Down"
+  },
+  {
+   "n": 37,
+   "phys": "DOWN",
+   "event": "KeyboardCraftspersonKey37Down"
+  },
+  {
+   "n": 38,
+   "phys": "LEFT",
+   "event": "KeyboardCraftspersonKey38Down"
+  },
+  {
+   "n": 39,
+   "phys": "RIGHT",
+   "event": "KeyboardCraftspersonKey39Down"
+  },
+  {
+   "n": 40,
+   "phys": "RCTRL",
+   "event": "KeyboardCraftspersonKey40Down"
+  },
+  {
+   "n": 41,
+   "phys": "RSHIFT",
+   "event": "KeyboardCraftspersonKey41Down"
+  },
+  {
+   "n": 42,
+   "phys": "BACKSPACE",
+   "event": "KeyboardCraftspersonKey42Down"
+  },
+  {
+   "n": 43,
+   "phys": "CAPSLOCK",
+   "event": "KeyboardCraftspersonKey43Down"
+  }
+ ],
+ "letters_direct": {
+  "G": "G",
+  "H": "H",
+  "I": "I",
+  "J": "J",
+  "K": "K",
+  "L": "L",
+  "O": "O",
+  "P": "P",
+  "U": "U",
+  "V": "V",
+  "Y": "Y",
+  "Z": "Z"
+ },
+ "letters_layer1": {
+  "G": "A",
+  "H": "B",
+  "I": "C",
+  "J": "D",
+  "K": "E",
+  "L": "F",
+  "O": "M",
+  "P": "N",
+  "U": "P",
+  "MINUS": "Q",
+  "EQUALS": "R",
+  "LBRACKET": "S",
+  "COMMA": "T",
+  "PERIOD": "W",
+  "SLASH": "X"
+ },
+ "layer_key": "I",
+ "letters_missing": [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "M",
+  "N",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "W",
+  "X"
+ ]
+}

@@ -121,20 +121,72 @@ local CFG = {
 }
 
 -- 物理键 -> 奇匠按键编号。
--- ⚠ 按 Lua客户端控件API文档.md §26(1) 的**枚举序号**逐行对齐（该表物理键栏与
---   序号错位一行）：1-0 = 枚举 1-10，A-V = 11-32，W/X/Y/Z = 33-36，
---   F5-F10 = 37-42，` = 43，Backspace = 46。
+-- ⚠⚠ 这张表**不能**靠「物理键栏与枚举序号错位一行」去推——那个推法已被证伪。
+--    权威来源是 API 文档 §26(3) Enum.KeyEventType 表的「默认物理键」栏；
+--    build/gen_keymap.py 直接从文档生成 data/keymap.json 并核对本文件。
+--    文档确认的真实映射（枚举 -> 物理键）：
+--      1-10 = 1..0
+--      11-22 = U Z Y G H I O P J K L V   ← **只有 12 个字母有独立按键**
+--      23-28 = F5..F10
+--      29 = `  30 = -  31 = =  32 = [  33 = ,  34 = .  35 = /
+--      36-39 = 方向键  40 = 右Ctrl  41 = 右Shift  42 = Backspace  43 = CapsLock
+--    即 A B C D E F M N Q R S T W X 这 14 个字母**收不到事件**，
+--    这正是「有几个键位用不了」的真正原因。补法是双层键盘，见 LETTER_LAYER*。
 local KEY_INDEX = {
     ["1"] = 1, ["2"] = 2, ["3"] = 3, ["4"] = 4, ["5"] = 5,
     ["6"] = 6, ["7"] = 7, ["8"] = 8, ["9"] = 9, ["0"] = 10,
-    ["A"] = 11, ["B"] = 12, ["C"] = 13, ["D"] = 14, ["E"] = 15,
-    ["F"] = 16, ["G"] = 17, ["H"] = 18, ["I"] = 19, ["J"] = 20,
-    ["K"] = 21, ["L"] = 22, ["M"] = 23, ["N"] = 24, ["O"] = 25,
-    ["P"] = 26, ["Q"] = 27, ["R"] = 28, ["S"] = 29, ["T"] = 30,
-    ["U"] = 31, ["V"] = 32, ["W"] = 33, ["X"] = 34, ["Y"] = 35,
-    ["Z"] = 36, ["F5"] = 37, ["F6"] = 38, ["F7"] = 39, ["F8"] = 40,
-    ["F9"] = 41, ["F10"] = 42, ["BACKQUOTE"] = 43,
-    ["BACKSPACE"] = 46,
+    -- 有独立按键的 12 个字母
+    ["U"] = 11, ["Z"] = 12, ["Y"] = 13, ["G"] = 14, ["H"] = 15,
+    ["I"] = 16, ["O"] = 17, ["P"] = 18, ["J"] = 19, ["K"] = 20,
+    ["L"] = 21, ["V"] = 22,
+    -- 功能键
+    ["F5"] = 23, ["F6"] = 24, ["F7"] = 25, ["F8"] = 26,
+    ["F9"] = 27, ["F10"] = 28,
+    -- 标点（第 1 层键盘借用它们承载字母）
+    ["BACKQUOTE"] = 29, ["MINUS"] = 30, ["EQUALS"] = 31, ["LBRACKET"] = 32,
+    ["COMMA"] = 33, ["PERIOD"] = 34, ["SLASH"] = 35,
+    -- 方向键与其它
+    ["UP"] = 36, ["DOWN"] = 37, ["LEFT"] = 38, ["RIGHT"] = 39,
+    ["RCTRL"] = 40, ["RSHIFT"] = 41, ["BACKSPACE"] = 42, ["CAPSLOCK"] = 43,
+}
+
+-- ── 双层字母键盘 ──────────────────────────────────────────────────────────
+-- 只有 12 个字母键可用，而拼音要 26 个字母，所以分两层：
+--   第 0 层（默认）：那 12 个键输出它们自己
+--   第 1 层（按一下切层键后）：这些键 + 6 个标点键输出另外 14 个字母
+-- 切层做成"按一下切换"而不是"按住"，因为真机上拿不到可靠的按下/抬起配对。
+local LETTER_LAYER0 = {
+    ["U"] = "U", ["Z"] = "Z", ["Y"] = "Y", ["G"] = "G", ["H"] = "H",
+    ["I"] = "I", ["O"] = "O", ["P"] = "P", ["J"] = "J", ["K"] = "K",
+    ["L"] = "L", ["V"] = "V",
+}
+local LETTER_LAYER1 = {
+    ["U"] = "A", ["Z"] = "B", ["Y"] = "C", ["G"] = "D", ["H"] = "E",
+    ["O"] = "M", ["P"] = "N", ["J"] = "P", ["K"] = "Q", ["L"] = "R",
+    ["V"] = "S",
+    ["MINUS"] = "T", ["EQUALS"] = "W", ["LBRACKET"] = "X",
+    ["COMMA"] = "F", ["PERIOD"] = "G", ["SLASH"] = "H",
+}
+-- 切层键：按一下切到第 1 层，再按一下回第 0 层。
+-- 必须挑一个**不是字母**的键：一开始选 I，结果 I 本身是字母，切层就把 i 打不出来了。
+-- `` ` ``（枚举 29）不参与拼音，正合适。
+local LAYER_KEY = "BACKQUOTE"
+-- 第 1 层独占的键（第 0 层时它们不是字母）
+local LAYER1_ONLY = { MINUS = true, EQUALS = true, LBRACKET = true,
+                      COMMA = true, PERIOD = true, SLASH = true }
+
+-- 两层的按键图例（给玩家看当前这层哪个键对应哪个字母）
+local function layer_legend(map)
+    local names = {}
+    for k in pairs(map) do names[#names + 1] = k end
+    table.sort(names)
+    local out = {}
+    for _, k in ipairs(names) do out[#out + 1] = k .. "=" .. map[k] end
+    return table.concat(out, " ")
+end
+local LAYER_LEGEND = {
+    layer_legend(LETTER_LAYER0),
+    layer_legend(LETTER_LAYER1),
 }
 
 -- 数字键 -> 候补序号（1-9 选第 1-9 个，0 选第 10 个）
@@ -172,7 +224,7 @@ local SEND_KEY = "F5"
 local MOD = {}
 
 -- [[SPEECH_BANK_BEGIN]] 以下内容由 build/build_speech.py 生成，请勿手改
--- 生成时间：2026-10-02 22:32:10
+-- 生成时间：2026-10-02 22:45:17
 -- 语料版本：speech-bank/1   问法索引：126 条
 MOD.PERSONA = {
     name     = "",
@@ -4999,6 +5051,8 @@ local ST = {
     asks = {},          -- 当前候选问法
     pick = nil,         -- 玩家用数字键选中的问法序号
     busy = false,
+    -- 双层字母键盘的当前层：0 = 那 12 个直键，1 = 另外 14 个字母
+    layer = 0,
 }
 
 local function refresh_input()
@@ -5049,11 +5103,14 @@ local function refresh_hint()
         return
     end
     if raw ~= "" or #pool > 0 then
-        set_text("hint", "数字键选字 · Backspace 删除 · " .. SEND_KEY .. " 发送")
+        set_text("hint", "数字键选字 · Backspace 删除 · " .. SEND_KEY .. " 发送 · 第"
+            .. (ST.layer + 1) .. "层：" .. LAYER_LEGEND[ST.layer + 1])
     elseif committed ~= "" then
-        set_text("hint", "可以继续打拼音补充，或按 " .. SEND_KEY .. " 发送这句话")
+        set_text("hint", "可以继续打拼音补充，或按 " .. SEND_KEY .. " 发送这句话 · 第"
+            .. (ST.layer + 1) .. "层：" .. LAYER_LEGEND[ST.layer + 1])
     else
-        set_text("hint", "打拼音即可（连续输入，例如 nihaoma） · " .. SEND_KEY .. " 发送")
+        set_text("hint", "打拼音即可（连续输入，例如 nihaoma） · 第 " .. (ST.layer + 1)
+            .. " 层（" .. LAYER_KEY .. " 切层）：" .. LAYER_LEGEND[ST.layer + 1])
     end
 end
 
@@ -5172,13 +5229,9 @@ end
 local function event_name(physical)
     local idx = KEY_INDEX[physical]
     if not idx then return nil end
-    if idx <= 43 then
-        return "KeyboardCraftspersonKey" .. idx .. "Down"
-    end
-    if physical == "BACKSPACE" then
-        return "KeyboardCraftspersonKey46Down"
-    end
-    return nil
+    -- 文档 §26(3) 里只有 KeyboardCraftspersonKey1Down ~ Key43Down。
+    -- ⚠ 不要再写 Key46Down：文档里没有这个事件，那是我早先凭印象编的。
+    return "KeyboardCraftspersonKey" .. idx .. "Down"
 end
 
 -- 逻辑键 -> 该注册哪些事件名。
@@ -5261,12 +5314,23 @@ local function handle_key(physical)
         return true
     end
 
-    -- 字母键：一个键一个字母，26 个字母全有独立按键
-    if #physical == 1 and physical >= "A" and physical <= "Z" then
-        ime_letter(physical)
+    -- 切层键：切换双层字母键盘（26 个字母里的 14 个没有独立按键，靠切层补齐）
+    if physical == LAYER_KEY then
+        ST.layer = (ST.layer == 0) and 1 or 0
+        logf("切层：第 %d 层（%s）", ST.layer + 1, LAYER_LEGEND[ST.layer + 1])
+        refresh_hint()
+        return true
+    end
+
+    -- 字母键：按当前层查表
+    local map = (ST.layer == 1) and LETTER_LAYER1 or LETTER_LAYER0
+    local ch = map[physical]
+    if ch then
+        ime_letter(ch)
         on_input_changed()
         return true
     end
+    -- 第 1 层独占的键在其它层不产生字母
     return false
 end
 
@@ -5413,9 +5477,10 @@ function layout_plan(canvas_w, canvas_h)
     plan[#plan + 1] = { name = "hint", parent = nil, kind = "text", size = 22,
         x = cx, y = dy(LAYOUT.hint_y), w = 1760 * sx, h = 48 * sy,
         text = "", align = "middle", color = "dim" }
-    plan[#plan + 1] = { name = "keys", parent = nil, kind = "text", size = 20,
+    plan[#plan + 1] = { name = "keys", parent = nil, kind = "text", size = 18,
         x = cx, y = dy(LAYOUT.keys_y), w = 1760 * sx, h = 44 * sy,
-        text = "输入：A-Z 打拼音 · 1-0 选字或选问法 · Backspace 删除 · " .. SEND_KEY .. " 发送",
+        text = "输入：字母键打拼音（" .. LAYER_KEY .. " 切层）· 1-0 选字或选问法 · Backspace 删除 · "
+            .. SEND_KEY .. " 发送",
         align = "middle", color = "dim" }
     return plan, sx, sy
 end
@@ -5537,6 +5602,11 @@ if __SPEECH_TEST__ then
     rawset(__SPEECH_TEST__, "ST", ST)
     rawset(__SPEECH_TEST__, "LAYOUT", LAYOUT)
     __SPEECH_TEST__.layout_plan = layout_plan
+    -- 双层字母键盘（只有 12 个字母有独立按键，另外 14 个靠切层）
+    rawset(__SPEECH_TEST__, "LETTER_LAYER0", LETTER_LAYER0)
+    rawset(__SPEECH_TEST__, "LETTER_LAYER1", LETTER_LAYER1)
+    __SPEECH_TEST__.LAYER_KEY = LAYER_KEY
+    rawset(__SPEECH_TEST__, "LAYER_LEGEND", LAYER_LEGEND)
     __SPEECH_TEST__.build_ui = build_ui
     __SPEECH_TEST__.handle_key = handle_key
     __SPEECH_TEST__.submit = submit

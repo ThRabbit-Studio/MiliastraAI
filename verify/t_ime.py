@@ -231,53 +231,59 @@ def scenario_matching(T) -> dict:
 
 
 def scenario_remap(T) -> dict:
-    """按键重映射：真机上有键收不到事件时，用它把功能指到别的键。
+    """双层字母键盘。
 
-    这个功能必须可验证——它存在的意义就是「文档与真机不一致时能救回来」，
-    如果它自己不生效，那等于没有。
+    文档 §26(3) 确认：**只有 12 个字母有独立按键**（U Z Y G H I O P J K L V），
+    另外 14 个字母（A B C D E F M N Q R S T W X）**收不到事件**——
+    这就是「有几个键位用不了」的真正原因。补法是双层键盘：
+    第 0 层打那 12 个，按切层键后第 1 层打另外 14 个。
     """
-    # 清状态，注册一次基准监听
     T.ime_clear()
     T.RT.ready = True
     T.build_ui()
-    base_listeners = len(T.RT.keyHandlers)
-    check(base_listeners > 20, f"基准监听数异常：{base_listeners}")
+    l0 = {str(k): str(v) for k, v in T.LETTER_LAYER0.items()}
+    l1 = {str(k): str(v) for k, v in T.LETTER_LAYER1.items()}
+    layer_key = str(T.LAYER_KEY)
 
-    # 造一个「G 键收不到事件」的场景：期望按 F 也能走通 G 的逻辑
-    # （F 枚举 16、G 枚举 17，都是奇匠按键）
-    # 注意 REMAP 的方向：[本应起作用的键] = "实际收到了事件的键"
-    # 这里模拟：F 收不到事件，按 G 时当作按了 F
-    # 造一个「F 键收不到事件」的场景：期望按 G 时执行 F 的功能
-    # REMAP 的方向是 [收不到事件的键] = "顶替它的键"
-    remap_table = lua_table({"F": "G"})
-    T.set_remap(remap_table)
-    T.build_ui()
-    n = len(T.RT.keyHandlers)
-    check(n >= base_listeners,
-          f"加重映射后监听数不应变少：{base_listeners} -> {n}")
+    # 1) 两层合起来必须覆盖全部 26 个字母
+    covered = set(l0.values()) | set(l1.values())
+    want = set(chr(c) for c in range(ord("A"), ord("Z") + 1))
+    check(covered == want,
+          f"两层字母未覆盖全部 26 个：缺 {sorted(want - covered)}，"
+          f"多 {sorted(covered - want)}")
+    # 2) 切层键不能同时被当作字母键（否则那个字母就打不出来了）
+    check(layer_key not in l0 and layer_key not in l1,
+          f"切层键 {layer_key} 与字母键冲突")
 
-    # 功能验证：按 G 的事件，应该打出 f
+    # 3) 第 0 层：按 U（枚举 11）应打出 u
+    T.ST.layer = 0
     T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey17Down")     # 物理 G（枚举 17）
+    T.feed_event("KeyboardCraftspersonKey11Down")
     _c, raw = T.ime_parts()
-    check(str(raw) == "f", f"按 G 应顶替 F 打出 f，实际 raw={raw!r}")
+    check(str(raw) == "u", f"第0层按 U 应打出 u，实际 {raw!r}")
 
-    # 被顶替的键自己不再重复响应（它本来在真机上就收不到）
+    # 4) 按切层键进第 1 层，再按 U 应打出别的字母
     T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey16Down")     # 物理 F（枚举 16）
+    T.feed_event("KeyboardCraftspersonKey29Down")      # 切层键 `（枚举 29）
+    check(int(T.ST.layer) == 1, f"按切层键后应在第 1 层，实际 {T.ST.layer}")
+    T.feed_event("KeyboardCraftspersonKey11Down")      # 再按 U
     _c2, raw2 = T.ime_parts()
-    check(str(raw2) == "", f"被顶替的键不应再响应，实际 raw={raw2!r}")
+    want2 = str(l1.get("U", "")).lower()
+    check(str(raw2) == want2,
+          f"第1层按 U 应打出 {want2}，实际 {raw2!r}")
 
-    # 别的键不受影响
+    # 5) 再按一次切层键回到第 0 层
+    T.feed_event("KeyboardCraftspersonKey29Down")
+    check(int(T.ST.layer) == 0, f"再按切层键应回第 0 层，实际 {T.ST.layer}")
     T.ime_clear()
-    T.feed_event("KeyboardCraftspersonKey18Down")     # 物理 H（枚举 18）
+    T.feed_event("KeyboardCraftspersonKey11Down")
     _c3, raw3 = T.ime_parts()
-    check(str(raw3) == "h", f"未涉及的键应正常，实际 raw={raw3!r}")
+    check(str(raw3) == "u", f"回第0层后按 U 应打 u，实际 {raw3!r}")
 
-    T.set_remap(lua_table({}))
-    T.build_ui()
-    return {"基准监听": base_listeners, "加重映射后": n,
-            "按G顶替F": "OK", "按F仍正常": "OK"}
+    return {"第0层": "".join(sorted(l0.values())),
+            "第1层": "".join(sorted(l1.values())),
+            "切层键": layer_key,
+            "26字母覆盖": "OK", "切层往返": "OK"}
 
 
 def main() -> int:
