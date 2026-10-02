@@ -24,3 +24,8 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
+
+# 模型训练产物（可由 model/*.py 重新生成）
+model/model.npz
+model/meta.json
+data/train_corpus.txt
