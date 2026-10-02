@@ -215,7 +215,7 @@ local SEND_KEY = "EQUALS"
 local MOD = {}
 
 -- [[SPEECH_BANK_BEGIN]] 以下内容由 build/build_speech.py 生成，请勿手改
--- 生成时间：2026-10-02 22:45:17
+-- 生成时间：2026-10-02 22:51:11
 -- 语料版本：speech-bank/1   问法索引：126 条
 MOD.PERSONA = {
     name     = "",
