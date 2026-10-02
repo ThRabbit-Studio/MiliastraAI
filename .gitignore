@@ -1,0 +1,26 @@
+# 排除构建期依赖与产物：这些都能由脚本重新生成，不进版本库
+# Unihan 原始数据 8.3MB，从 unicode.org 下载
+build/Unihan.zip
+# 从 Unihan 提取出的表（合计约 1.1MB，用 build/extract_*.py 重新生成）
+data/unihan_initials.json
+data/unihan_syllables.json
+data/unihan_commonness.json
+data/syllables_real.json
+# 工作区里的图片资产标注 5.7MB，与本项目无关
+Image_sample_by_id.json
+# 便携工具（git 等），本地用，不入库
+.tools/
+# 构建产物（由 build/ 生成）
+# 注意：ime/ime_data.lua 虽然是生成物，但入库——
+# 它只有 60KB，入库后 clone 下来直接跑 build_speech.py 就能用，不必先装 Unihan 数据。
+docs/构建报告.md
+docs/preview.html
+docs/preview.md
+# Python
+__pycache__/
+*.pyc
+.venv/
+# 编辑器
+.vscode/
+.idea/
+*.swp
