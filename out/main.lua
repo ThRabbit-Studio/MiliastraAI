@@ -172,7 +172,7 @@ local SEND_KEY = "F5"
 local MOD = {}
 
 -- [[SPEECH_BANK_BEGIN]] 以下内容由 build/build_speech.py 生成，请勿手改
--- 生成时间：2026-10-02 22:08:22
+-- 生成时间：2026-10-02 22:32:10
 -- 语料版本：speech-bank/1   问法索引：126 条
 MOD.PERSONA = {
     name     = "",

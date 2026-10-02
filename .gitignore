@@ -29,3 +29,7 @@ __pycache__/
 model/model.npz
 model/meta.json
 data/train_corpus.txt
+
+# 编码器产物（可由 model/train_encoder.py 重新生成）
+model/encoder.npz
+model/encoder_meta.json
